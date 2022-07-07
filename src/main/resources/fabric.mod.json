@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "serverinfo",
+  "version": "${version}",
+
+  "name": "Example Mod",
+  "description": "This is an example description! Tell everyone what your mod is about!",
+  "authors": [
+    "Cloudburst"
+  ],
+  "contact": {
+    "sources": "https://github.com/AntiCope/server-info-command"
+  },
+
+  "license": "CC0-1.0",
+  "icon": "assets/serverinfo/icon.png",
+
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "anticope.serverinfo.ServerInfo"
+    ]
+  },
+  "mixins": [
+    "serverinfo.mixins.json"
+  ],
+
+  "depends": {
+    "fabric": "*",
+    "minecraft": "~${mc_version}"
+  }
+}
