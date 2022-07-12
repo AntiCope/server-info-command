@@ -1,29 +1,21 @@
 package anticope.serverinfo;
 
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.context.CommandContextBuilder;
-import com.mojang.brigadier.suggestion.Suggestion;
 import joptsimple.internal.Strings;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.impl.command.client.ClientCommandInternals;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientCommandSource;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.c2s.play.RequestCommandCompletionsC2SPacket;
-import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.ClickEvent;
 import net.minecraft.text.HoverEvent;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static com.mojang.brigadier.Command.SINGLE_SUCCESS;
@@ -31,7 +23,6 @@ import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.lit
 
 public class ServerInfo implements ModInitializer {
     public static final Handler handler = new Handler();
-    private static final String completionStarts = "abcdefghijklmnopqrstuvwxyz0123456789/:";
 
     @Override
     public void onInitialize() {
@@ -46,6 +37,10 @@ public class ServerInfo implements ModInitializer {
                 return SINGLE_SUCCESS;
             })));
         });
+
+        ClientPlayNetworking.registerGlobalReceiver(new Identifier("badlion", "mods"), (client, handler, buf, responseSender) -> {
+            ServerInfo.handler.onBadLionMods(buf);
+        });
     }
 
     private void printPlugins() {
@@ -56,6 +51,7 @@ public class ServerInfo implements ModInitializer {
                 .getRoot()
                 .getChildren()
                 .stream()
+                .filter(cmd -> !(cmd.getRequirement().getClass().getName().startsWith("net.fabricmc.fabric.impl.command.client.ClientCommandInternals"))) // ugly way to skip fabric client commands
                 .map(cmd -> cmd.getName())
                 .filter(cmd -> cmd.contains(":"))
                 .map(cmd -> cmd.split(":")[0])
@@ -98,11 +94,14 @@ public class ServerInfo implements ModInitializer {
             print(createEntry("Protocol version", String.format("%d", server.protocolVersion), true));
         }
 
+        print(createEntry("Players", String.format("%d", mc.getNetworkHandler().getPlayerList().size()), false));
+
         if (mc.world != null && mc.player != null) {
+            print(createEntry("Brand", mc.player.getServerBrand() != null ? mc.player.getServerBrand() : "unknown", true));
             print(createEntry("Difficulty", mc.world.getDifficulty().getTranslatableName(), false));
             print(createEntry("Local difficulty", String.format("%.2f", mc.world.getLocalDifficulty(mc.player.getBlockPos()).getLocalDifficulty()), false));
             print(createEntry("Day", String.format("%d", mc.world.getTimeOfDay() / 24000L), false));
-            print(createEntry("Permissions", formatPerms(mc.player), false));
+            print(createEntry("Permissions", formatPerms(mc.player), false));   
         }
 
         float tps = handler.getTickRate();
@@ -112,6 +111,10 @@ public class ServerInfo implements ModInitializer {
             else if (tps > 12.0f) color = Formatting.YELLOW;
             else color = Formatting.RED;
             print(createEntry("TPS", color + String.format("%.2f", tps),false));
+        }
+
+        if (handler.badlionMods != null) {
+            print(createEntry("Disallowed mods: ", handler.badlionMods, false));
         }
     }
 
